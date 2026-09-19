@@ -1,0 +1,17 @@
+DirectoryIndex index.php
+Options -Indexes
+
+<FilesMatch "^(config|bootstrap|Database|Mailer|OmniRouteClient|functions|schema)(\.mysql)?\.php$">
+    Require all denied
+</FilesMatch>
+
+<FilesMatch "^schema(\.mysql)?\.sql$">
+    Require all denied
+</FilesMatch>
+ 
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "DENY"
+    Header set Referrer-Policy "same-origin"
+</IfModule>
+ 

@@ -1,0 +1,56 @@
+<?php
+
+/**
+ * OmnInterface — Configuration
+ * Copiez ce fichier et adaptez les valeurs à votre hébergement.
+ */
+
+// --- Application ---
+define('APP_NAME', 'OmnInterface');
+$appHost = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
+
+// Nom d'hôte utilisé pour la clé d'accès (WebAuthn "Relying Party").
+// Doit correspondre EXACTEMENT au domaine affiché dans le navigateur (sans http/https, sans port).
+// Exemple AlwaysData : 'monidentifiant.alwaysdata.net' ou votre domaine personnalisé.
+define('APP_RP_ID', (string) preg_replace('/:\d+$/', '', $appHost));
+
+// Origine complète (protocole + domaine) utilisée pour vérifier les cérémonies WebAuthn.
+define('APP_ORIGIN', (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https://' : 'http://') . $appHost);
+
+// --- Base de données ---
+// Choisissez "sqlite" pour le fonctionnement local ou "mysql" pour AlwaysData.
+define('DB_DRIVER', 'mysql');
+//define('DB_PATH', __DIR__ . '/data/omninterface.sqlite');
+define('DB_HOST', '');
+define('DB_PORT', 3306);
+define('DB_NAME', '');
+define('DB_USER', '');
+define('DB_PASSWORD', '');
+define('DB_CHARSET', 'utf8mb4');
+define('APP_ENCRYPTION_KEY', '');
+
+// --- E-mail (code de vérification) ---
+// Utilisez "smtp" pour un serveur SMTP externe, ou "mail" pour le relais PHP.
+define('MAIL_TRANSPORT', 'smtp');
+define('MAIL_FROM', '');
+define('MAIL_FROM_NAME', APP_NAME);
+define('SMTP_HOST', '');
+define('SMTP_PORT', 465);
+define('SMTP_ENCRYPTION', 'ssl'); // tls, ssl ou none
+define('SMTP_AUTH', true);
+define('SMTP_USERNAME', '');
+define('SMTP_PASSWORD', '');
+define('SMTP_TIMEOUT', 15);
+
+// --- Sécurité ---
+define('VERIFICATION_CODE_TTL', 600);      // durée de validité du code (secondes) = 10 min
+define('VERIFICATION_CODE_LENGTH', 6);
+define('SESSION_LIFETIME', 60 * 60 * 24 * 30); // durée de session "connecté" = 30 jours
+
+// --- OmniRoute ---
+// Valeur par défaut proposée à l'utilisateur lors de la liaison de son serveur.
+define('DEFAULT_OMNIROUTE_URL', 'http://localhost:20128/v1');
+define('OMNIROUTE_TIMEOUT', 60); // secondes, pour les requêtes de chat
+
+// --- Fuseau horaire ---
+date_default_timezone_set('Europe/Paris');
