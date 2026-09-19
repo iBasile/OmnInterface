@@ -3,9 +3,20 @@ require_once __DIR__ . '/bootstrap.php';
 $uid = require_login_api();
 $action = $_GET['action'] ?? '';
 $db = Database::get();
+if ($action === 'models') {
+    $account = current_user();
+    $apiKey = decrypt_secret($account['omniroute_api_key'] ?? null);
+    if (!$apiKey) json_response(['error' => 'Clé API OmniRoute non configurée.'], 409);
+    try {
+        $models = (new OmniRouteClient((string) $account['omniroute_url'], $apiKey))->listModels();
+        json_response(['models' => $models]);
+    } catch (Throwable $e) {
+        json_response(['error' => $e->getMessage()], 502);
+    }
+}
 if (!csrf_check($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ($_POST['csrf_token'] ?? null))) json_response(['error' => 'Jeton CSRF invalide.'], 403);
 if ($action === 'new') {
-    $db->prepare('INSERT INTO conversations (user_id) VALUES (?)')->execute([$uid]);
+    $db->prepare('INSERT INTO conversations (user_id, model) SELECT ?, default_model FROM users WHERE id = ?')->execute([$uid, $uid]);
     json_response(['id' => (int)$db->lastInsertId()]);
 }
 if ($action === 'save') {
@@ -36,7 +47,8 @@ if ($action === 'send') {
     $conversationId = (int)($body['conversation_id'] ?? 0);
     if ($content === '') json_response(['error' => 'Message vide.'], 422);
     if ($conversationId === 0) {
-        $db->prepare('INSERT INTO conversations (user_id, title) VALUES (?, ?)')->execute([$uid, mb_substr($content, 0, 48)]);
+        $db->prepare('INSERT INTO conversations (user_id, title, model) SELECT ?, ?, default_model FROM users WHERE id = ?')
+            ->execute([$uid, mb_substr($content, 0, 48), $uid]);
         $conversationId = (int)$db->lastInsertId();
     }
     $check = $db->prepare('SELECT id, model FROM conversations WHERE id = ? AND user_id = ?');
@@ -47,6 +59,10 @@ if ($action === 'send') {
     $stmt = $db->prepare('SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY id');
     $stmt->execute([$conversationId]);
     $history = $stmt->fetchAll();
+    array_unshift($history, [
+        'role' => 'system',
+        'content' => 'Tu aides principalement à programmer. Quand tu génères un fichier, place son contenu dans un bloc Markdown clôturé et mets le nom complet du fichier (avec extension) juste après les backticks ouvrants, par exemple ```src/app.js. Explique brièvement ce que contient le fichier.',
+    ]);
     $account = current_user();
     $apiKey = decrypt_secret($account['omniroute_api_key'] ?? null);
     if ($apiKey === null || $apiKey === '') {
@@ -60,5 +76,15 @@ if ($action === 'send') {
     $db->prepare("INSERT INTO messages (conversation_id, role, content) VALUES (?, 'assistant', ?)")->execute([$conversationId, $reply]);
     $db->prepare('UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$conversationId]);
     json_response(['conversation_id' => $conversationId, 'reply' => $reply]);
+}
+if ($action === 'set-model') {
+    $body = json_body();
+    $conversationId = (int) ($body['conversation_id'] ?? 0);
+    $model = trim((string) ($body['model'] ?? ''));
+    if ($model === '') json_response(['error' => 'Modèle invalide.'], 422);
+    $stmt = $db->prepare('UPDATE conversations SET model = ? WHERE id = ? AND user_id = ?');
+    $stmt->execute([$model, $conversationId, $uid]);
+    if ($stmt->rowCount() === 0) json_response(['error' => 'Discussion introuvable.'], 404);
+    json_response(['model' => $model]);
 }
 json_response(['error' => 'Action inconnue.'], 404);

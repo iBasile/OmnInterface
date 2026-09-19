@@ -9,9 +9,11 @@ $conversations = $stmt->fetchAll();
 $active = (int) ($_GET['conversation'] ?? ($conversations[0]['id'] ?? 0));
 $messages = [];
 $activeTitle = 'Nouvelle discussion';
+$activeModel = (string) ($user['default_model'] ?? '');
 foreach ($conversations as $conversation) {
     if ((int) $conversation['id'] === $active) {
         $activeTitle = $conversation['title'];
+        $activeModel = (string) ($conversation['model'] ?? '');
         break;
     }
 }
@@ -42,7 +44,7 @@ if ($active) {
                 <p class="eyebrow">ESPACE PRIVÉ</p>
                 <h2><?= h($activeTitle) ?></h2>
             </div>
-            <div class="connection"><span></span> OmniRoute connecté</div>
+            <div class="topbar-actions"><label class="model-picker"><span>Modèle</span><select id="model-select"><option value="auto" <?= $activeModel === '' ? 'selected' : '' ?>>auto</option></select></label><div class="connection"><span></span> OmniRoute connecté</div></div>
         </header>
         <section class="messages" id="messages"><?php if (!$messages): ?><div class="empty-state">
                     <div class="empty-icon">✦</div>
@@ -54,8 +56,8 @@ if ($active) {
                         <div class="message-content"><?= nl2br(h($message['content'])) ?></div>
                     </article><?php endforeach;
                                                 endif; ?></section>
-        <form class="composer" id="composer"><input type="hidden" name="csrf_token" value="<?= h(csrf_token()) ?>"><input type="hidden" name="conversation_id" value="<?= $active ?>"><textarea name="content" rows="1" placeholder="Écrivez votre message…" aria-label="Message"></textarea><button type="submit" aria-label="Envoyer">↑</button>
-            <div class="composer-note">OmnInterface peut faire des erreurs. Vérifiez les informations importantes.</div>
+        <form class="composer" id="composer"><input type="hidden" name="csrf_token" value="<?= h(csrf_token()) ?>"><input type="hidden" name="conversation_id" value="<?= $active ?>"><textarea name="content" rows="1" placeholder="Décrivez votre besoin ou demandez un fichier…" aria-label="Message"></textarea><button type="submit" aria-label="Envoyer">↑</button>
+            <div class="composer-note">Demandez « crée le fichier src/app.js » pour obtenir un fichier téléchargeable. Vérifiez les informations importantes.</div>
         </form>
     </main>
     <script>
@@ -63,8 +65,8 @@ if ($active) {
             csrf: <?= json_encode(csrf_token()) ?>,
             conversation: <?= $active ?>,
             omnirouteUrl: <?= json_encode((string) ($user['omniroute_url'] ?? DEFAULT_OMNIROUTE_URL)) ?>,
-            omnirouteApiKey: <?= json_encode((string) ($user['omniroute_api_key'] ?? 'VOTRE_CLE_API_ICI')) ?>,
-            localBridge: <?= json_encode((bool) preg_match('/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?\//i', (string) ($user['omniroute_url'] ?? ''))) ?>,
+            localBridge: false,
+            model: <?= json_encode($activeModel !== '' ? $activeModel : 'auto') ?>,
             history: <?= json_encode(array_map(static fn(array $message): array => ['role' => $message['role'], 'content' => $message['content']], $messages), JSON_UNESCAPED_UNICODE) ?>
         };
     </script>

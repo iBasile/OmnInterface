@@ -1,5 +1,5 @@
 (() => {
-  const escapeHtml = value => value.replace(/[&<>]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[character]));
+  const escapeHtml = value => value.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[character]));
 
   const bridgeRequest = (target, body, headers = {}) => new Promise((resolve, reject) => {
     const id = crypto.randomUUID();
@@ -85,6 +85,25 @@
     location.href = `chat.php?conversation=${data.id}`;
   });
 
+  const modelSelect = document.querySelector('#model-select');
+  if (modelSelect) {
+    fetch('api.php?action=models', { headers: { 'X-CSRF-Token': window.omni.csrf } })
+      .then(response => response.json().then(data => ({ response, data })))
+      .then(({ response, data }) => {
+        if (!response.ok) throw new Error(data.error || 'Impossible de charger les modèles.');
+        if (window.omni.model !== 'auto' && !data.models.includes(window.omni.model)) {
+          modelSelect.add(new Option(window.omni.model, window.omni.model, true, true));
+        }
+        data.models.forEach(model => modelSelect.add(new Option(model, model, false, model === window.omni.model)));
+        modelSelect.value = window.omni.model;
+      })
+      .catch(error => console.warn(error.message));
+    modelSelect.addEventListener('change', async () => {
+      const response = await fetch('api.php?action=set-model', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.omni.csrf }, body: JSON.stringify({ conversation_id: window.omni.conversation, model: modelSelect.value }) });
+      if (!response.ok) alert((await response.json()).error || 'Impossible de changer de modèle.');
+    });
+  }
+
   const composer = document.querySelector('#composer');
   composer?.addEventListener('submit', async event => {
     event.preventDefault();
@@ -131,7 +150,7 @@
       }
 
       if (data.conversation_id !== window.omni.conversation) location.href = `chat.php?conversation=${data.conversation_id}`;
-      else document.querySelector('.is-thinking').outerHTML = `<article class="message assistant"><div class="avatar">✦</div><div class="message-content">${escapeHtml(data.reply).replace(/\n/g, '<br>')}</div></article>`;
+      else document.querySelector('.is-thinking').outerHTML = renderAssistantMessage(data.reply);
     } catch (error) {
       console.error('[OmnInterface App] 💥 Erreur globale lors de l’envoi :', error);
       document.querySelector('.is-thinking')?.remove();
@@ -150,4 +169,30 @@
     input.value = button.textContent;
     input.focus();
   }));
+
+  function renderAssistantMessage(content) {
+    return `<article class="message assistant"><div class="avatar">✦</div><div class="message-content">${renderAssistantContent(content)}</div></article>`;
+  }
+  function renderAssistantContent(content) {
+    const safe = escapeHtml(content).replace(/\n/g, '<br>');
+    const withFiles = safe.replace(/```([^\n]*)<br>([\s\S]*?)```/g, (_, hint, code) => {
+      const token = hint.trim().split(/\s+/).pop() || '';
+      const filename = token.includes('.') ? token.replace(/^filename=/, '') : `code-${Date.now()}.${token || 'txt'}`;
+      const encoded = btoa(unescape(encodeURIComponent(code.replace(/<br>/g, '\n'))));
+      return `<div class="generated-file"><div class="file-meta">▣ ${escapeHtml(filename)}</div><pre>${code}</pre><button type="button" data-download="${encoded}" data-filename="${escapeHtml(filename)}">Télécharger</button></div>`;
+    });
+    return withFiles;
+  }
+  document.querySelectorAll('.message.assistant .message-content').forEach(element => {
+    element.innerHTML = renderAssistantContent(element.textContent || '');
+  });
+  document.addEventListener('click', event => {
+    const button = event.target.closest('[data-download]');
+    if (!button) return;
+    const bytes = Uint8Array.from(atob(button.dataset.download), character => character.charCodeAt(0));
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'text/plain;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url; link.download = button.dataset.filename || 'fichier.txt'; link.click();
+    URL.revokeObjectURL(url);
+  });
 })();
